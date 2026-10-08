@@ -1,0 +1,121 @@
+name: 构建静态网页并发布到 web 分支
+
+# 把 make web 的产物提交到 web 分支,供 Cloudflare Pages / EdgeOne Pages 绑定发布。
+# 本文件已放在 .github/workflows/ 下,推送到 main 会直接触发。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 安装 Typst
+        run: |
+          curl -fL https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz -o /tmp/typst.tar.xz
+          tar -xf /tmp/typst.tar.xz -C /tmp
+          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          # .webfonts/ 的字体走 LFS,不拉取只会拿到指针文件
+          lfs: true
+
+      # Typst 不支持 woff2,而 PDF 必须用 ttf/otf。CI 里没有系统字体,故把 .webfonts/*.woff2
+      # 就地转成 ttf 放进临时目录,交给 TYPST_FONT_PATHS;否则 PDF 会回退成默认字体。
+      # 转换出的字族名与 languages/zh.toml 的 [fonts] 一致(如 LXGW WenKai Mono)。
+      - name: 字体转 ttf 供 PDF 使用
+        run: |
+          shopt -s nullglob
+          woff2=(.webfonts/*.woff2)
+          if [ ${#woff2[@]} -eq 0 ]; then
+            echo "无 .webfonts/*.woff2,跳过(见 .webfonts/README.md)"
+            exit 0
+          fi
+          if ! python3 -c "import fontTools, brotli" 2>/dev/null; then
+            python3 -m pip install --quiet --break-system-packages fonttools brotli \
+              || sudo apt-get install -y -qq python3-fonttools python3-brotli
+          fi
+          mkdir -p "$RUNNER_TEMP/uhfonts"
+          python3 - <<'PY'
+          import glob, os
+          from fontTools.ttLib import TTFont
+
+          out = os.environ["RUNNER_TEMP"] + "/uhfonts"
+          for f in sorted(glob.glob(".webfonts/*.woff2")):
+              ft = TTFont(f)
+              ft.flavor = None
+              dst = os.path.join(out, os.path.basename(f)[:-len(".woff2")] + ".ttf")
+              ft.save(dst)
+              print(f"  {f} -> {os.path.basename(dst)} ({os.path.getsize(dst) // 1024}KB, {ft['name'].getDebugName(1)})")
+          PY
+
+      - name: 构建网页和PDF(make all)
+        env:
+          # 让 typst 从 .packages/ 取模板,而不是去下载 Universe 的包
+          TYPST_PACKAGE_PATH: ${{ github.workspace }}/.packages
+          # 让 typst 从临时目录取上一步转出的 ttf,PDF 才能用上自定义字体
+          TYPST_FONT_PATHS: ${{ runner.temp }}/uhfonts
+        run: make all
+
+      # 源 .webfonts/ 有字体时,从产物 HTML 提取实际用字,把全字库 woff2 原地子集化
+      # (同名覆盖,@font-face 无需改动);没有字体则跳过,不影响构建。
+      - name: 字体子集化(仅 .webfonts/ 有字体时)
+        run: |
+          if [ -z "$(find dist/webfonts -maxdepth 1 -name '*.woff2' 2>/dev/null)" ]; then
+            echo "dist/webfonts 下无字体,跳过子集化(见 .webfonts/README.md)"
+            exit 0
+          fi
+          if ! python3 -c "import fontTools, brotli" 2>/dev/null; then
+            python3 -m pip install --quiet --break-system-packages fonttools brotli \
+              || sudo apt-get install -y -qq python3-fonttools python3-brotli
+          fi
+          python3 - <<'PY'
+          import html, pathlib, subprocess, sys
+
+          dist = pathlib.Path("dist")
+          text = "\n".join(
+              p.read_text(encoding="utf-8") for p in sorted(dist.rglob("*.html"))
+          )
+          chars = set(text) | set(html.unescape(text))
+          chars |= {chr(c) for c in range(0x20, 0x7F)}
+          chars |= set("　、。，．·…—～－／｜（）〈〉《》「」『』【】“”‘’※→←↑↓")
+
+          tf = pathlib.Path("/tmp/uh-web-chars.txt")
+          tf.write_text("".join(sorted(chars)), encoding="utf-8")
+          print(f"用字提取:{len(chars)} 个字符")
+
+          before_all = after_all = 0
+          for f in sorted((dist / "webfonts").glob("*.woff2")):
+              before = f.stat().st_size
+              tmp = pathlib.Path(str(f) + ".subset")
+              subprocess.run([sys.executable, "-m", "fontTools.subset", str(f),
+                  f"--text-file={tf}",
+                  "--flavor=woff2",
+                  f"--output-file={tmp}",
+                  "--layout-features=*",
+                  "--no-hinting",
+                  "--drop-tables+=DSIG",
+              ], check=True)
+              tmp.replace(f)
+              after = f.stat().st_size
+              before_all += before
+              after_all += after
+              print(f"  {f.name}:{before // 1024}KB -> {after // 1024}KB")
+          print(f"字体合计:{before_all // 1024}KB -> {after_all // 1024}KB")
+          PY
+
+      - name: 推送到 web 分支
+        working-directory: dist
+        run: |
+          git init -q -b web
+          git config user.name "web-bot"
+          git config user.email "web-bot@users.noreply.github.com"
+          git add -A
+          git commit -q -m "网页构建:${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" web
