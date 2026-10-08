@@ -10,4 +10,6 @@
 #outline(title: "目录")
 
 #include "自新世界/我见青山多妩媚.typ"
-#include "雾隐青麟.typ"
+#include "?原作者没起名字/雾隐青麟.typ"
+#include "?原作者没起名字/神龙藏深泉-猛兽步高冈.typ"
+#include "?原作者没起名字/广阔天地-大有作为.typ"
