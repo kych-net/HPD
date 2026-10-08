@@ -23,8 +23,8 @@
 // 封面用 图片/封面.jpg;logo 走模板默认。
 // / Web template: applied by the entry point via #show.
 #let 网页模板 = 地狱之下模板.with(
-  title: "我见青山多妩媚",
-  subtitle: "自新世界 · 系列文章",
+  title: "HPDreams",
+  subtitle: "帮他发的文章",
   author: "HP,Dreams",
   cover: image("图片/封面.jpg"),
   lang: "zh",
@@ -45,5 +45,5 @@
 )
 
 #let 导航 = (
-  ("我见青山多妩媚", "我见青山多妩媚"),
+  ("自新世界/我见青山多妩媚", "我见青山多妩媚"),
 )

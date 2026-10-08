@@ -1,7 +1,7 @@
 // 《我见青山多妩媚》正文。系列文章［自新世界］,作者 HP,Dreams(百度贴吧 · 大超萌吧)。
 // 单篇全文,单页收录;正文照录,仅修正个别 OCR 讹字。
 // / Full text of "我见青山多妩媚" (series ［自新世界］) as a single chapter.
-#import "../配置.typ": *
+#import "../../配置.typ": *
 
 = 我见青山多妩媚
 
