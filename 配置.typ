@@ -20,15 +20,16 @@
 #let 元素数据 = csv("附件/元素系统.csv")
 
 // 网页模板:入口 内容/index.typ 用 #show 套用。
-// 封面/logo 走模板默认;要加图就把图片放进本项目,再 cover: image("…") / logo: image("…")。
+// 封面用 图片/封面.jpg;logo 走模板默认。
 // / Web template: applied by the entry point via #show.
 #let 网页模板 = 地狱之下模板.with(
-  title: "我的设定集",
-  subtitle: "一个崭新的世界",
-  author: "你的名字",
+  title: "我见青山多妩媚",
+  subtitle: "自新世界 · 系列文章",
+  author: "HP,Dreams",
+  cover: image("图片/封面.jpg"),
   lang: "zh",
   paper: "a4",
-  品牌名: "我的世界",
+  品牌名: "自新世界",
   备案号: "",
   元素系统数据: 元素数据,
 )
@@ -44,7 +45,5 @@
 )
 
 #let 导航 = (
-  ("示例", "示例"),
-  ("关于", "关于"),
-  ("概述", "概述")
+  ("我见青山多妩媚", "我见青山多妩媚"),
 )

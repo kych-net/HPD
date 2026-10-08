@@ -9,6 +9,4 @@
 
 #outline(title: "目录")
 
-#include "概述.typ"
-#include "示例.typ"
-#include "关于.typ"
+#include "我见青山多妩媚.typ"
